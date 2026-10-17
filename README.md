@@ -19,6 +19,8 @@ dependencies, no DOM: it runs in a page, in a Web Worker, in an Android WebView 
 > information a recording has lost, and it will not make a bad recording match a good one. It is built for **speech**.
 > See [Known limits](#known-limits) and [What we did and did not measure](#numbers-what-we-measured).
 
+**Try it live:** [demo](https://dialersapps.github.io/sbr-crystalizer/demo.html) (process your own recording in the browser) · [tests](https://dialersapps.github.io/sbr-crystalizer/test.html)
+
 **Contents:** [Why](#why) · [Quick start](#use) · [API](#api) · [How it works](#how-it-works) · [Numbers](#numbers-what-we-measured) · [Tests](#tests) · [Limits](#known-limits) · [Licence](#licence)
 
 ## Why
