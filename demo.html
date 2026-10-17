@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>sbr-crystalizer.js demo</title>
+<style>
+:root{--bg:#0b0f14;--fg:#e6ecf5;--dim:#9fb4cc;--card:#14202e;--line:#24364a;--acc:#4da3ff;color-scheme:dark light}
+@media (prefers-color-scheme:light){:root{--bg:#f6f8fb;--fg:#14202e;--dim:#52657d;--card:#fff;--line:#d5dde8;--acc:#1b6fd1}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:900px;margin:0 auto;padding:20px 16px 48px}h1{font-size:1.4rem;margin:.2rem 0}p.d{color:var(--dim);margin:.2rem 0 1rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0}
+.row{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}label{display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--dim)}
+input[type=range]{width:180px}button,.btn{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+button.alt{background:transparent;color:var(--fg);border:1px solid var(--line)}button:disabled{opacity:.45;cursor:default}
+canvas{width:100%;height:200px;display:block;border-radius:8px;background:#000;image-rendering:auto}.cap{font-size:12px;color:var(--dim);margin:4px 0 10px}
+#status{font-size:13px;color:var(--dim);min-height:1.4em}
+</style></head><body><main>
+<h1>sbr-crystalizer.js demo</h1>
+<p class="d">Pick a low-quality voice recording (or use the built-in synthetic one), press <b>Crystalize</b>, then compare. Everything runs in your browser; nothing is uploaded.</p>
+<div class="card"><div class="row">
+ <input id="file" type="file" accept="audio/*"> <button id="synth" class="alt">Use synthetic voice (8 kHz band-limit)</button></div></div>
+<div class="card"><div class="row">
+ <label>Cutoff<select id="mode"><option value="auto">auto-detect</option><option value="manual">manual</option></select></label>
+ <label>Manual cutoff: <span id="cv">4000</span> Hz<input id="cut" type="range" min="3000" max="16000" step="100" value="4000"></label>
+ <label>Strength: <span id="sv">0.85</span><input id="str" type="range" min="0" max="1.5" step="0.05" value="0.85"></label>
+ <label>Tilt: <span id="tv">11</span> dB/oct<input id="tilt" type="range" min="3" max="24" step="0.5" value="11"></label>
+ <label><span>&nbsp;</span><span><input id="dbl" type="checkbox"> double the sample rate (&le;24 kHz input)</span></label>
+</div><div class="row" style="margin-top:12px"><button id="go" disabled>Crystalize</button><button id="pa" class="alt" disabled>Play original</button><button id="pb" class="alt" disabled>Play processed</button><button id="stop" class="alt">Stop</button><button id="dl" class="alt" disabled>Download WAV</button></div><div id="status">No audio loaded.</div></div>
+<div class="card"><b>Original</b><canvas id="ca" width="900" height="200"></canvas><div class="cap">Spectrogram, 0 to Nyquist, bright = louder.</div><b>Processed</b><canvas id="cb" width="900" height="200"></canvas><div class="cap" id="info"></div></div>
+<p class="d">This is a perceptual enhancer: it adds a plausible top end, it cannot recover information the recording has lost. <a href="README.md" style="color:var(--acc)">Read the README</a>.</p>
+<script src="sbr-crystalizer.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+let ctx, src = null, orig = null, proc = null, current = null;
+const AC = () => (ctx = ctx || new (window.AudioContext || window.webkitAudioContext)());
+const status = (s) => { $("status").textContent = s; };
+const sliders = [["cut","cv"],["str","sv"],["tilt","tv"]];
+sliders.forEach(([a,b]) => $(a).addEventListener("input", () => { $(b).textContent = $(a).value; }));
+
+function setOrig(chs, sr, label) { orig = { chs, sr }; proc = null; $("go").disabled = false; $("pa").disabled = false; $("pb").disabled = true; $("dl").disabled = true; draw($("ca"), chs[0], sr); clear($("cb")); $("info").textContent = ""; status(label + ": " + (chs[0].length / sr).toFixed(1) + " s, " + sr + " Hz, " + chs.length + " ch"); }
+$("file").onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { status("Decoding..."); const buf = await AC().decodeAudioData(await f.arrayBuffer()); setOrig(Array.from({ length: Math.min(2, buf.numberOfChannels) }, (_, i) => buf.getChannelData(i).slice()), buf.sampleRate, f.name); } catch (err) { status("Could not decode that file: " + err.message); } };
+$("synth").onclick = () => { const sr = 24000, n = sr * 6, x = new Float32Array(n); let ph = 0; for (let i = 0; i < n; i++) { const t = i / sr, f0 = 110 + 25 * Math.sin(2 * Math.PI * 0.7 * t); ph += 2 * Math.PI * f0 / sr; const env = Math.max(0, Math.sin(2 * Math.PI * 3.1 * t)) ** 0.6; let s = 0; for (let h = 1; h * f0 < 7600; h++) { const f = h * f0; s += (1 / (1 + ((f - 700) / 500) ** 2) + 0.6 / (1 + ((f - 2400) / 700) ** 2) + 0.15 / (1 + ((f - 5000) / 1500) ** 2)) / Math.sqrt(h) * Math.sin(h * ph); } x[i] = 0.3 * env * s; } setOrig([x], sr, "Synthetic voice"); };
+
+$("go").onclick = async () => {
+  $("go").disabled = true; status("Processing...");
+  const t0 = performance.now();
+  const opts = { cutoffMode: $("mode").value, cutoffHz: +$("cut").value, strength: +$("str").value, tilt: +$("tilt").value, doubleRate: $("dbl").checked };
+  const r = await sbrCrystalizer.process(orig.chs, orig.sr, opts);
+  const ms = Math.round(performance.now() - t0);
+  if (!r.applied) { status("Left unchanged (" + r.info.reason + "). " + ({ nocliff: "No steep cutoff was found; try manual cutoff.", nospeech: "No speech found.", short: "Clip too short.", rate: "Sample rate outside 8-48 kHz." }[r.info.reason] || "")); $("go").disabled = false; return; }
+  proc = { chs: r.channels, sr: r.sampleRate }; $("pb").disabled = false; $("dl").disabled = false; $("go").disabled = false;
+  draw($("cb"), proc.chs[0], proc.sr, true);
+  const c = r.info.cutoffHz || r.info.detectedCutoffHz;
+  $("info").textContent = "Cutoff used: " + (c ? Math.round(c) + " Hz" : "n/a") + ", processed in " + ms + " ms.";
+  status("Done in " + ms + " ms.");
+};
+function play(o) { stop(); const ac = AC(); const b = ac.createBuffer(o.chs.length, o.chs[0].length, o.sr); o.chs.forEach((c, i) => b.copyToChannel(c, i)); current = ac.createBufferSource(); current.buffer = b; current.connect(ac.destination); current.start(); }
+function stop() { try { current && current.stop(); } catch (e) {} current = null; }
+$("pa").onclick = () => play(orig); $("pb").onclick = () => play(proc); $("stop").onclick = stop;
+$("dl").onclick = () => { const x = proc.chs, n = x[0].length, ch = x.length, buf = new ArrayBuffer(44 + n * ch * 2), v = new DataView(buf); const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0))); w(0, "RIFF"); v.setUint32(4, 36 + n * ch * 2, true); w(8, "WAVEfmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true); v.setUint32(24, proc.sr, true); v.setUint32(28, proc.sr * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * ch * 2, true); let o = 44; for (let i = 0; i < n; i++) for (let c = 0; c < ch; c++) { v.setInt16(o, Math.max(-1, Math.min(1, x[c][i])) * 32767 | 0, true); o += 2; } const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([buf], { type: "audio/wav" })); a.download = "crystalized.wav"; a.click(); };
+
+// minimal spectrogram
+function fft(re, im) { const n = re.length; for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } } for (let s = 2; s <= n; s <<= 1) { const a = -2 * Math.PI / s; for (let i = 0; i < n; i += s) for (let k = 0; k < s / 2; k++) { const wr = Math.cos(a * k), wi = Math.sin(a * k), p = i + k, q = p + s / 2, tr = re[q] * wr - im[q] * wi, ti = re[q] * wi + im[q] * wr; re[q] = re[p] - tr; im[q] = im[p] - ti; re[p] += tr; im[p] += ti; } } }
+function clear(c) { const g = c.getContext("2d"); g.fillStyle = "#000"; g.fillRect(0, 0, c.width, c.height); }
+let refDb = null;
+function draw(c, x, sr, keepRef) { const N = 1024, W = c.width, H = c.height, g = c.getContext("2d"), img = g.createImageData(W, H), re = new Float64Array(N), im = new Float64Array(N); const hop = Math.max(N / 4, Math.floor((x.length - N) / W)); const cols = []; let peak = -1e9; for (let col = 0; col < W; col++) { const s = Math.min(col * hop, Math.max(0, x.length - N)); for (let i = 0; i < N; i++) { re[i] = (x[s + i] || 0) * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / N)); im[i] = 0; } fft(re, im); const dbs = new Float32Array(N / 2); for (let k = 0; k < N / 2; k++) { dbs[k] = 10 * Math.log10(re[k] * re[k] + im[k] * im[k] + 1e-12); if (dbs[k] > peak) peak = dbs[k]; } cols.push(dbs); }
+  if (!keepRef) refDb = peak; const ref = refDb === null ? peak : refDb;
+  for (let col = 0; col < W; col++) { const dbs = cols[col]; for (let row = 0; row < H; row++) { const k = Math.min(N / 2 - 1, Math.floor((1 - row / H) * N / 2)), db = dbs[k], t = Math.max(0, Math.min(1, (db - (ref - 110)) / 95)), o = (row * W + col) * 4; img.data[o] = 255 * Math.min(1, t * 1.6); img.data[o + 1] = 255 * Math.max(0, t * 1.8 - 0.8); img.data[o + 2] = 255 * (t < .5 ? t * 1.2 : Math.max(0, 1.2 - t * 1.2)); img.data[o + 3] = 255; } } g.putImageData(img, 0, 0); }
+clear($("ca")); clear($("cb"));
+</script></main></body></html>

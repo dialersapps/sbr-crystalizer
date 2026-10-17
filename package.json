@@ -1,0 +1,24 @@
+{
+  "name": "sbr-crystalizer",
+  "version": "1.0.0",
+  "description": "Artificially add fidelity to low-quality voice recordings: spectral band replication in plain JavaScript (no WebAssembly, no dependencies).",
+  "main": "sbr-crystalizer.js",
+  "module": "sbr-crystalizer.mjs",
+  "exports": {
+    ".": {
+      "import": "./sbr-crystalizer.mjs",
+      "require": "./sbr-crystalizer.js"
+    }
+  },
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "measure": "node tools/measure.mjs && node tools/make-diagrams.mjs"
+  },
+  "files": ["sbr-crystalizer.js", "sbr-crystalizer.mjs", "README.md", "LICENSE", "test.html", "demo.html", "tests", "tools", "docs"],
+  "keywords": ["audio", "dsp", "speech", "voice", "bandwidth-extension", "spectral-band-replication", "sbr", "enhancement", "javascript", "browser", "no-wasm"],
+  "license": "MIT",
+  "author": "Dialer's Apps",
+  "homepage": "https://dialersapps.pages.dev/lab/notes/sbr-crystalizer.html",
+  "repository": { "type": "git", "url": "git+https://github.com/dialersapps/sbr-crystalizer.git" },
+  "bugs": { "url": "https://github.com/dialersapps/sbr-crystalizer/issues" }
+}

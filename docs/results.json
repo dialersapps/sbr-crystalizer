@@ -1,0 +1,63 @@
+{
+  "generated": "synthetic voice, seed 20261016",
+  "cases": {
+    "hz48k_lp8k": {
+      "applied": true,
+      "detectedCutoffHz": 7828,
+      "trueCutoffHz": 8000,
+      "rebuiltTopHz": 14900,
+      "bandDb": {
+        "original": -58.240105829641145,
+        "degraded": -156.927979631195,
+        "processed": -71.03061626338189
+      },
+      "lsdDb": {
+        "degradedVsOriginal": 91.48518001138576,
+        "processedVsOriginal": 12.076254687504237
+      },
+      "belowCutoffMeanAbsDiffDb": 0.00017915110183604085
+    },
+    "hz48k_gentle_rolloff": {
+      "autoApplied": false,
+      "autoReason": "nocliff",
+      "manualApplied": true,
+      "manualCutoffHz": 7992,
+      "lsdDb": {
+        "degradedVsOriginal": 36.157059822448616,
+        "manualProcessedVsOriginal": 13.082808031131501
+      }
+    },
+    "hz16k_lp3_8k": {
+      "applied": true,
+      "detectedCutoffHz": 3625,
+      "trueCutoffHz": 3800,
+      "bandDb": {
+        "original": -60.30655820226176,
+        "degraded": -172.11689927650613,
+        "processed": -78.30625936503486
+      },
+      "lsdDb": {
+        "degradedVsOriginal": 100.95059944934509,
+        "processedVsOriginal": 15.055656042380692
+      },
+      "belowCutoffMeanAbsDiffDb": 0.001342860372337558
+    },
+    "hz48k_fullband": {
+      "applied": false,
+      "reason": "nocliff",
+      "returnedSameArray": true
+    },
+    "hz48k_noise_only": {
+      "applied": false,
+      "reason": "nocliff"
+    }
+  },
+  "determinism": {
+    "identicalOnRepeat": true,
+    "identicalChannelsStayIdentical": true
+  },
+  "speedMs": {
+    "sec10_48k_mono": 267,
+    "sec10_16k_mono": 85
+  }
+}
